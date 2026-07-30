@@ -116,6 +116,34 @@
           <h3 class="text-md font-bold text-amber-400">Zbývající intervaly</h3>
           <div id="driver-intervals" class="grid grid-cols-2 gap-2"></div>
         </div>
+
+        <!-- SEKCE: NAHLÁŠENÍ ZÁVADY -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 text-xs">
+          <h3 class="text-md font-bold text-amber-400 flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i> Nahlásit závadu na vozidle
+          </h3>
+          <form onsubmit="odeslatZavadu(event)" class="space-y-3">
+            <div>
+              <label class="block text-slate-400 mb-1">Závažnost</label>
+              <select id="zavada-zavaznost" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white">
+                <option value="Běžná závada">Běžná závada (nebrání v provozu)</option>
+                <option value="Vážná závada">Vážná závada (nutno řešit brzy)</option>
+                <option value="Havárie / Odstaveno">Havárie / Odstaveno (nebezpečné / nepojízdné)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Popis závady</label>
+              <textarea id="zavada-popis" rows="3" placeholder="Popište co na autě nefunguje..." required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-amber-400"></textarea>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Fotka závady (volitelně)</label>
+              <input type="file" id="zavada-file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-xs file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950">
+            </div>
+            <button type="submit" id="btn-zavada" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3 rounded-lg flex items-center justify-center gap-2 shadow">
+              <i data-lucide="send" class="w-4 h-4"></i> Odeslat hlášení závady
+            </button>
+          </form>
+        </div>
       </div>
 
       <div id="sekce-dokumenty" class="space-y-3 hidden">
@@ -130,10 +158,27 @@
     </main>
   </div>
 
+  <!-- MODÁLNÍ OKNO PRO NÁHLED -->
+  <div id="modal-preview" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-2xl p-4 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3 shrink-0">
+        <h3 id="preview-title" class="text-md font-bold text-amber-400">Náhled dokumentu</h3>
+        <button onclick="zavritPreview()" class="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="preview-content" class="flex-1 overflow-auto flex items-center justify-center p-2 bg-slate-950 rounded-xl"></div>
+    </div>
+  </div>
+
   <script>
     const API_BASE = "https://script.google.com/macros/s/";
     const API_ID = "AKfycbzxo1uJ_ge4tkGLsdco088jJNdSJGLHk_ah55XYGtLBXV14CePgj2Quo9haLDX2no3g";
     const API_URL = API_BASE + API_ID + "/exec";
+
+    const CLOUD_NAME = "ou0xbczh";
+    const UPLOAD_PRESET = "KaJaApp";
+
     let globalData = {}, currentRidic = null, currentAuto = null;
 
     window.onload = function() {
@@ -165,7 +210,7 @@
 
       if (!ridic || String(ridic.pin).trim() !== pin) { alert("Chybné jméno nebo PIN!"); return; }
       currentRidic = ridic;
-      currentAuto = (data.auta || []).find(a => a.id == ridic.prirazeneAutoId); // Opraveno, ale hlídá se globální
+      currentAuto = (globalData.auta || []).find(a => a.id == ridic.prirazeneAutoId);
 
       if (String(ridic.pin).trim() === "1111") {
         document.getElementById('modal-zmena-pinu').classList.remove('hidden');
@@ -256,13 +301,110 @@
       if (plany.length === 0) { box.innerHTML = '<div class="text-xs text-slate-500 italic">Žádné naplánované servisy.</div>'; return; }
       box.innerHTML = '';
       plany.forEach(p => {
+        let stavRidic = '<span class="text-amber-400 font-bold">Čeká na tvou volbu</span>';
+        if (p.volba === 'ZAJEDU_SAM') stavRidic = '<span class="text-emerald-400 font-bold">Zajedu sám</span>';
+        if (p.volba === 'PREDAM') stavRidic = '<span class="text-red-400 font-bold">Předám auto</span>';
+
         box.innerHTML += `
-          <div class="bg-slate-800 p-3 rounded text-xs space-y-1">
-            <div class="flex justify-between font-bold text-white"><span>${p.ukon}</span><span class="text-amber-400 font-mono">${p.datumPlan}</span></div>
-            ${p.poznamka ? `<div class="text-slate-400 italic">${p.poznamka}</div>` : ''}
+          <div class="bg-slate-800 p-3.5 rounded-xl text-xs space-y-2 border border-slate-700">
+            <div class="flex justify-between font-bold text-white text-sm">
+              <span>${p.ukon}</span>
+              <span class="text-amber-400 font-mono">${p.datumPlan}</span>
+            </div>
+            ${p.poznamka ? `<div class="text-slate-300 italic">${p.poznamka}</div>` : ''}
+            <div class="pt-2 border-t border-slate-700/60 flex justify-between items-center">
+              <div>Stav: ${stavRidic}</div>
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button onclick="odpovedetNaPlan('${p.id}', 'ZAJEDU_SAM')" class="flex-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 py-2 rounded-lg font-bold hover:bg-emerald-500/30">Zajedu sám</button>
+              <button onclick="odpovedetNaPlan('${p.id}', 'PREDAM')" class="flex-1 bg-red-500/20 text-red-400 border border-red-500/40 py-2 rounded-lg font-bold hover:bg-red-500/30">Předám auto</button>
+            </div>
           </div>
         `;
       });
+    }
+
+    function odpovedetNaPlan(planId, volba) {
+      fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: "driverPlanResponse", planId: planId, volba: volba })
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          alert("Odpověď byla uložena.");
+          fetch(API_URL + "?action=getData").then(r => r.json()).then(data => {
+            globalData = data;
+            currentAuto = (data.auta || []).find(a => a.id == currentRidic.prirazeneAutoId);
+            vyrenderovatPlanyRidic();
+          });
+        }
+      });
+    }
+
+    async function odeslatZavadu(e) {
+      e.preventDefault();
+      if (!currentAuto) { alert("Nemáš přiřazené žádné vozidlo!"); return; }
+
+      const btn = document.getElementById('btn-zavada');
+      btn.disabled = true;
+      btn.innerText = "Odesílám závadu...";
+
+      const fileInput = document.getElementById('zavada-file').files[0];
+      let fotkaUrl = "";
+
+      if (fileInput) {
+        const formData = new FormData();
+        formData.append("file", fileInput);
+        formData.append("upload_preset", UPLOAD_PRESET);
+        try {
+          const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, { method: "POST", body: formData });
+          const data = await resp.json();
+          if (data.secure_url) fotkaUrl = data.secure_url;
+        } catch (err) {
+          console.error("Chyba nahrávání fotky:", err);
+        }
+      }
+
+      fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: "createZavada",
+          autoId: currentAuto.id,
+          ridicId: currentRidic.id,
+          zavaznost: document.getElementById('zavada-zavaznost').value,
+          popis: document.getElementById('zavada-popis').value,
+          fotkaUrl: fotkaUrl
+        })
+      })
+      .then(r => r.json())
+      .then(res => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Odeslat hlášení závady';
+        if (res.status === 'success') {
+          alert("Závada byla úspěšně nahlášena správci.");
+          document.getElementById('zavada-popis').value = '';
+          document.getElementById('zavada-file').value = '';
+          lucide.createIcons();
+        } else {
+          alert("Chyba při odesílání závady.");
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Odeslat hlášení závady';
+        alert("Chyba připojení.");
+      });
+    }
+
+    function zobrazitPreview(url, nazev) {
+      document.getElementById('preview-title').innerText = nazev;
+      document.getElementById('preview-content').innerHTML = `<img src="${url}" alt="${nazev}" class="max-w-full max-h-[70vh] object-contain rounded-lg">`;
+      document.getElementById('modal-preview').classList.remove('hidden');
+    }
+
+    function zavritPreview() {
+      document.getElementById('modal-preview').classList.add('hidden');
     }
 
     function ulozitOdo(e) { e.preventDefault(); alert("ULOŽENO"); }
