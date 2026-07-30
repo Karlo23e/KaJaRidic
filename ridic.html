@@ -7,7 +7,6 @@
     <!-- Odkaz na manifest a ikonu -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <!-- Tady pokračuje zbytek tvého původního kódu... -->
   <link rel="icon" type="image/png" href="https://img.icons8.com/?size=512&id=49429&format=png&color=000000">
   <link rel="apple-touch-icon" href="https://img.icons8.com/?size=512&id=49429&format=png&color=000000">
 
@@ -166,7 +165,7 @@
 
       if (!ridic || String(ridic.pin).trim() !== pin) { alert("Chybné jméno nebo PIN!"); return; }
       currentRidic = ridic;
-      currentAuto = (globalData.auta || []).find(a => a.id == ridic.prirazeneAutoId);
+      currentAuto = (data.auta || []).find(a => a.id == ridic.prirazeneAutoId); // Opraveno, ale hlídá se globální
 
       if (String(ridic.pin).trim() === "1111") {
         document.getElementById('modal-zmena-pinu').classList.remove('hidden');
@@ -236,7 +235,7 @@
       const d = currentAuto.detailZbyva || {};
       document.getElementById('driver-intervals').innerHTML = `
         <div class="bg-slate-900 p-2 rounded">Olej: <strong>${d.olej ?? 'Neuvedeno'} km</strong></div>
-        <div class="bg-slate-900 p-2 rounded">STK do: <strong>${currentApp?.stk || currentAuto.stk || 'Neuvedeno'}</strong></div>
+        <div class="bg-slate-900 p-2 rounded">STK do: <strong>${currentAuto.stk || 'Neuvedeno'}</strong></div>
       `;
     }
 
